@@ -4,7 +4,7 @@
 #  Postfix external policy filter for rejecting messages which are not from
 #  a list member at SMTP time.
 #
-#  Copyright (c) 2006, 2008, 2009 Sean Reifschneider, tummy.com, ltd.
+#  Copyright (c) 2006, 2008, 2009, 2013 Sean Reifschneider, tummy.com, ltd.
 #  All Rights Reserved
 #  <jafo@tummy.com>
 
@@ -22,17 +22,18 @@ suffixList = [
 		( '', 'check' ),
 		]
 
-import syslog
+from syslog import syslog, openlog, LOG_PID, LOG_MAIL
 import os
 import string
 import re
 import anydbm
 import sys
+
 sys.path.append('/usr/lib/mailman')
 from Mailman import MailList, Errors
 from Mailman.Handlers.Moderate import matches_p
 
-syslog.openlog(os.path.basename(sys.argv[0]), syslog.LOG_PID, syslog.LOG_MAIL)
+openlog(os.path.basename(sys.argv[0]), LOG_PID, LOG_MAIL)
 
 
 #################
@@ -48,7 +49,7 @@ class ExceptHook:
       tb = string.join(tb, '\n')
       for line in string.split(tb, '\n'):
          if self.useSyslog:
-            syslog.syslog(line)
+            syslog(line)
          if self.useStderr:
             sys.stderr.write(line + '\n')
 
@@ -60,16 +61,16 @@ sys.excepthook = ExceptHook(useSyslog = 1, useStderr = 1)
 def listmembercheck(data, debugLevel):
 	recipient = data.get('recipient')
 	if not recipient:
-		if debugLevel: syslog.syslog('tummailmanmember: No recipient, exiting')
+		if debugLevel: syslog('tummailmanmember: No recipient, exiting')
 		return(( None, None ))
 
 	sender = data.get('sender')
 	if not sender:
-		if debugLevel: syslog.syslog('tummailmanmember: No sender, exiting')
+		if debugLevel: syslog('tummailmanmember: No sender, exiting')
 		return(( None, None ))
 
 	if debugLevel >= 2:
-		syslog.syslog('tummailmanmember: '
+		syslog('tummailmanmember: '
 				'Checking recipient "%s" and sender "%s"' % ( recipient, sender ))
 
 	#  look up recipient in mailing list db
@@ -79,7 +80,7 @@ def listmembercheck(data, debugLevel):
 	if not res: res = mlDb.get(recipient + '\0')
 	if not res:
 		if debugLevel >= 2:
-			syslog.syslog('tummailmanmember: '
+			syslog('tummailmanmember: '
 					'Recipient address is not in the mail list hash, aborting.')
 		return(( None, None ))
 
@@ -87,7 +88,7 @@ def listmembercheck(data, debugLevel):
 	recipientAddressParts = string.split(recipient, '@', 1)
 	if len(recipientAddressParts) != 2:
 		if debugLevel >= 3:
-			syslog.syslog('tummailmanmember: '
+			syslog('tummailmanmember: '
 					'Recipient address not in user@domain format')
 		return(( None, None ))
 
@@ -108,7 +109,7 @@ def listmembercheck(data, debugLevel):
 				continue
 
 			if debugLevel >= 3:
-				syslog.syslog('tummailmanmember: '
+				syslog('tummailmanmember: '
 						'Matched suffix "%s" in local part "%s"'
 						% ( suffix, recipientAddressParts[0] ))
 
@@ -116,14 +117,14 @@ def listmembercheck(data, debugLevel):
 			break
 	
 	if debugLevel >= 3:
-		syslog.syslog('tummailmanmember: '
+		syslog('tummailmanmember: '
 				'Recipient list "%s" found, action "%s"'
 				% ( listName, repr(listAction) ))
 
 	#  abort due action missing or "ignore"
 	if not listAction or listAction == 'ignore':
 		if debugLevel >= 3:
-			syslog.syslog('tummailmanmember: '
+			syslog('tummailmanmember: '
 					'Aborting due to list action "%s"' % str(listAction))
 		return(( None, None ))
 
@@ -133,41 +134,41 @@ def listmembercheck(data, debugLevel):
 
 	#  accept messages from list owner - added by scott@tummy.com 20080715
 	if sender in mlist.owner:
-		if debugLevel: syslog.syslog('tummailmanmember: Is the list owner')
+		if debugLevel: syslog('tummailmanmember: Is the list owner')
 		valid_sender = True
 		return(ret)
 
 	if not valid_sender and mlist.isMember(sender):
-		if debugLevel: syslog.syslog('tummailmanmember: Is a member')
+		if debugLevel: syslog('tummailmanmember: Is a member')
 		valid_sender = True
 
 	try:
 		if not valid_sender and matches_p(sender, mlist.hold_these_nonmembers,
 				listName):
-			if debugLevel: syslog.syslog('tummailmanmember: Is in hold list')
+			if debugLevel: syslog('tummailmanmember: Is in hold list')
 			valid_sender = True
 	except TypeError:
 		#  matches_p changed its syntax
 		if not valid_sender and matches_p(sender, mlist.hold_these_nonmembers):
-			if debugLevel: syslog.syslog('tummailmanmember: Is in hold list')
+			if debugLevel: syslog('tummailmanmember: Is in hold list')
 			valid_sender = True
 	try:
 		if not valid_sender and matches_p(sender, mlist.accept_these_nonmembers,
 				listName):
-			if debugLevel: syslog.syslog('tummailmanmember: Is in accept list')
+			if debugLevel: syslog('tummailmanmember: Is in accept list')
 			valid_sender = True
 	except TypeError:
 		#  matches_p changed its syntax
 		if not valid_sender and matches_p(sender, mlist.accept_these_nonmembers):
-			if debugLevel: syslog.syslog('tummailmanmember: Is in accept list')
+			if debugLevel: syslog('tummailmanmember: Is in accept list')
 			valid_sender = True
 	
 	if not valid_sender:
 		if debugLevel >= 2:
-			syslog.syslog('tummailmanmember: "%s" Not a member of list' % sender)
+			syslog('tummailmanmember: "%s" Not a member of list' % sender)
 		if mlist.generic_nonmember_action in [2, 3]:
 			if debugLevel >= 2:
-				syslog.syslog(('tummailmanmember: "%s" rejected because of '
+				syslog(('tummailmanmember: "%s" rejected because of '
 						'generic_nonmember_action setting') % sender)
 			ret = ( 'reject', 'You must be a member to send to this address.' )
 
@@ -178,18 +179,18 @@ def listmembercheck(data, debugLevel):
 ####################
 #  loop reading data
 debugLevel = 2
-if debugLevel >= 2: syslog.syslog('Starting')
+if debugLevel >= 2: syslog('Starting')
 data = {}
 lineRx = re.compile(r'^\s*(\S+)\s*=(.*)$')
 while 1:
 	line = sys.stdin.readline()
 	if not line: break
 	line = string.rstrip(line)
-	if debugLevel >= 4: syslog.syslog('Read line: "%s"' % line)
+	if debugLevel >= 4: syslog('Read line: "%s"' % line)
 
 	#  end of entry
 	if not line:
-		if debugLevel >= 4: syslog.syslog('Found the end of entry')
+		if debugLevel >= 4: syslog('Found the end of entry')
 		checkerValue, checkerReason = listmembercheck(data, debugLevel)
 
 		#  handle results
@@ -210,7 +211,7 @@ while 1:
 	#  parse line
 	m = lineRx.match(line)
 	if not m: 
-		syslog.syslog('ERROR: Could not match line "%s"' % line)
+		syslog('ERROR: Could not match line "%s"' % line)
 		continue
 
 	#  save the string
