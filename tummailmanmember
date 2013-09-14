@@ -211,7 +211,7 @@ while True:
     #  parse line
     m = lineRx.match(line)
     if not m:
-        syslog('ERROR: Could not match line "%s"' % line)
+        debug(0, 'ERROR: Could not match line "%s"' % line)
         continue
 
     #  save the string
