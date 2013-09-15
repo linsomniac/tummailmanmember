@@ -198,7 +198,7 @@ while True:
             sys.stdout.write('action=%s %s\n\n'
                              % (checkerValue, checkerReason))
         else:
-            sys.stdout.write('action=%s\n\n' % checkerReason)
+            sys.stdout.write('action=%s\n\n' % checkerValue)
 
         #  end of record
         sys.stdout.flush()
