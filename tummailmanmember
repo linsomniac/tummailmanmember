@@ -66,18 +66,20 @@ def debug(level, message):
 
 
 def listmembercheck(data):
+    ret = ('dunno', '')
+
     recipient = data.get('recipient')
     if not recipient:
         debug(0, 'tummailmanmember: No recipient, exiting')
-        return((None, None))
+        return ret
 
     sender = data.get('sender')
     if not sender:
         debug(0, 'tummailmanmember: No sender, exiting')
-        return((None, None))
+        return ret
 
     debug(2, 'tummailmanmember: Checking recipient "%s" and sender "%s"'
-            % (recipient, sender))
+             % (recipient, sender))
 
     #  look up recipient in mailing list db
     mlDb = anydbm.open(listHashFile, 'r')
@@ -87,15 +89,15 @@ def listmembercheck(data):
         res = mlDb.get(recipient + '\0')
     if not res:
         debug(2, 'tummailmanmember: Recipient address is not in the mail '
-               'list hash, aborting.')
-        return((None, None))
+                 'list hash, aborting.')
+        return ret
 
     #  split out the recipient address into user and domain
     recipientAddressParts = string.split(recipient, '@', 1)
     if len(recipientAddressParts) != 2:
         debug(3, 'tummailmanmember: '
-                'Recipient address not in user@domain format')
-        return((None, None))
+                 'Recipient address not in user@domain format')
+        return ret
 
     #  check the suffix to see if it makes a list and what action to take
     listName = None
@@ -114,21 +116,19 @@ def listmembercheck(data):
                 continue
 
             debug(3, 'tummailmanmember: Matched suffix "%s" in local '
-                    'part "%s"' % (suffix, recipientAddressParts[0]))
+                     'part "%s"' % (suffix, recipientAddressParts[0]))
 
             listAction = action
             break
 
     debug(3, 'tummailmanmember: Recipient list "%s" found, action "%s"'
-            % (listName, repr(listAction)))
+             % (listName, repr(listAction)))
 
     #  abort due action missing or "ignore"
     if not listAction or listAction == 'ignore':
         debug(3, 'tummailmanmember: Aborting due to list action "%s"'
-                % str(listAction))
-        return((None, None))
-
-    ret = ('ok', 'ok')
+                 % str(listAction))
+        return ret
 
     valid_sender = False
 
@@ -136,7 +136,7 @@ def listmembercheck(data):
     if sender in mlist.owner:
         debug(0, 'tummailmanmember: Is the list owner')
         valid_sender = True
-        return(ret)
+        return ret
 
     if not valid_sender and mlist.isMember(sender):
         debug(0, 'tummailmanmember: Is a member')
@@ -169,11 +169,11 @@ def listmembercheck(data):
         debug(2, 'tummailmanmember: "%s" Not a member of list' % sender)
         if mlist.generic_nonmember_action in [2, 3]:
             debug(2, 'tummailmanmember: "%s" rejected because of '
-                    'generic_nonmember_action setting' % sender)
+                     'generic_nonmember_action setting' % sender)
             ret = ('reject', 'You must be a member to send to this address.')
 
     del(mlist)
-    return(ret)
+    return ret
 
 
 ####################
@@ -194,14 +194,11 @@ while True:
         checkerValue, checkerReason = listmembercheck(data)
 
         #  handle results
-        if checkerValue == 'defer':
-            sys.stdout.write('action=defer_if_permit %s\n\n' % checkerReason)
-
-        elif checkerValue == 'reject':
-            sys.stdout.write('action=reject %s\n\n' % checkerReason)
-
+        if checkerReason:
+            sys.stdout.write('action=%s %s\n\n'
+                             % (checkerValue, checkerReason))
         else:
-            sys.stdout.write('action=dunno\n\n')
+            sys.stdout.write('action=%s\n\n' % checkerReason)
 
         #  end of record
         sys.stdout.flush()
